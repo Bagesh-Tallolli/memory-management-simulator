@@ -5,6 +5,7 @@ import Home from './pages/Home'
 import Learn from './pages/Learn'
 import Visualize from './pages/Visualize'
 import Code from './pages/Code'
+import System from './pages/System'
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/learn" element={<Learn />} />
           <Route path="/visualize" element={<Visualize />} />
           <Route path="/code" element={<Code />} />
+          <Route path="/system" element={<System />} />
         </Routes>
       </div>
     </Router>
