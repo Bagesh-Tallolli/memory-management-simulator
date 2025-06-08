@@ -722,7 +722,7 @@ public:
         )}
 
         {activeTab === 'analytics' && renderAnalytics()}
-        {activeTab === 'code' && renderCppCode()}
+        {/* {activeTab === 'code' && renderCppCode()} */}
       </div>
     </div>
   )
