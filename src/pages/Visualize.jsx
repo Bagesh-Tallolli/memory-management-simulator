@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Line } from 'react-chartjs-2'
+import { Line, Pie } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -8,7 +8,8 @@ import {
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  ArcElement
 } from 'chart.js'
 
 ChartJS.register(
@@ -18,7 +19,8 @@ ChartJS.register(
   LineElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  ArcElement
 )
 
 function Visualize() {
@@ -40,12 +42,8 @@ function Visualize() {
   })
   const [nextColorIndex, setNextColorIndex] = useState(0)
   const [animatingBlock, setAnimatingBlock] = useState(null)
-  const [history, setHistory] = useState({
-    utilization: [],
-    fragmentation: [],
-    freeBlocks: [],
-    allocatedBlocks: []
-  })
+  const [history, setHistory] = useState([])
+  const [hoveredBlock, setHoveredBlock] = useState(null)
 
   // Predefined colors for memory blocks
   const blockColors = [
@@ -87,11 +85,9 @@ function Visualize() {
     const allocatedBlocks = memory.filter(block => block.allocated)
     const freeBlocks = memory.filter(block => !block.allocated)
     const totalAllocated = allocatedBlocks.reduce((sum, block) => sum + block.size, 0)
-    const totalFreeSpace = freeBlocks.reduce((sum, block) => sum + block.size, 0)
-    const largestFreeBlock = Math.max(...freeBlocks.map(block => block.size), 0)
-    const fragmentation = freeBlocks.length > 1 ? 
-      (freeBlocks.length - 1) / memory.length * 100 : 0
+    const totalFree = freeBlocks.reduce((sum, block) => sum + block.size, 0)
     const utilization = (totalAllocated / totalMemory) * 100
+    const fragmentation = freeBlocks.length > 1 ? ((freeBlocks.length - 1) / memory.length) * 100 : 0
 
     setAnalytics(prev => ({
       ...prev,
@@ -99,17 +95,20 @@ function Visualize() {
       utilization,
       freeBlocks: freeBlocks.length,
       allocatedBlocks: allocatedBlocks.length,
-      totalFreeSpace,
-      largestFreeBlock
+      totalFreeSpace: totalFree,
+      largestFreeBlock: Math.max(...freeBlocks.map(block => block.size), 0)
     }))
 
-    // Update history
-    setHistory(prev => ({
-      utilization: [...prev.utilization, utilization].slice(-20),
-      fragmentation: [...prev.fragmentation, fragmentation].slice(-20),
-      freeBlocks: [...prev.freeBlocks, freeBlocks.length].slice(-20),
-      allocatedBlocks: [...prev.allocatedBlocks, allocatedBlocks.length].slice(-20)
-    }))
+    setHistory(prev => {
+      const newHistory = [...prev, {
+        utilization,
+        fragmentation,
+        freeBlocks: freeBlocks.length,
+        allocatedBlocks: allocatedBlocks.length
+      }]
+      // Keep only the last 20 entries
+      return newHistory.slice(-20)
+    })
   }
 
   const allocateMemory = (size) => {
@@ -263,140 +262,149 @@ function Visualize() {
   const renderAnalytics = () => {
     const chartOptions = {
       responsive: true,
-      animation: {
-        duration: 1000
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            color: '#374151',
+            font: { size: 12 }
+          }
+        },
+        title: {
+          display: true,
+          color: '#374151',
+          font: { size: 14, weight: 'bold' }
+        }
       },
       scales: {
         y: {
           beginAtZero: true,
-          max: 100
-        }
-      },
-      plugins: {
-        legend: {
-          position: 'top'
+          grid: { color: '#E5E7EB' },
+          ticks: { color: '#374151' }
+        },
+        x: {
+          grid: { color: '#E5E7EB' },
+          ticks: { color: '#374151' }
         }
       }
-    }
+    };
 
-    const utilizationData = {
-      labels: Array.from({ length: history.utilization.length }, (_, i) => i + 1),
-      datasets: [
-        {
-          label: 'Memory Utilization (%)',
-          data: history.utilization,
-          borderColor: 'rgb(99, 102, 241)',
-          backgroundColor: 'rgba(99, 102, 241, 0.5)',
-          tension: 0.4
-        }
-      ]
-    }
-
-    const fragmentationData = {
-      labels: Array.from({ length: history.fragmentation.length }, (_, i) => i + 1),
-      datasets: [
-        {
-          label: 'Fragmentation (%)',
-          data: history.fragmentation,
-          borderColor: 'rgb(239, 68, 68)',
-          backgroundColor: 'rgba(239, 68, 68, 0.5)',
-          tension: 0.4
-        }
-      ]
-    }
-
-    const blocksData = {
-      labels: Array.from({ length: history.allocatedBlocks.length }, (_, i) => i + 1),
-      datasets: [
-        {
-          label: 'Allocated Blocks',
-          data: history.allocatedBlocks,
-          borderColor: 'rgb(34, 197, 94)',
-          backgroundColor: 'rgba(34, 197, 94, 0.5)',
-          tension: 0.4
+    const pieOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            color: '#374151',
+            font: { size: 12 }
+          }
         },
-        {
-          label: 'Free Blocks',
-          data: history.freeBlocks,
-          borderColor: 'rgb(156, 163, 175)',
-          backgroundColor: 'rgba(156, 163, 175, 0.5)',
-          tension: 0.4
+        title: {
+          display: true,
+          text: 'Memory Block Distribution',
+          color: '#374151',
+          font: { size: 14, weight: 'bold' }
         }
-      ]
-    }
+      }
+    };
 
     return (
       <div className="space-y-8">
-        <div className="bg-white shadow rounded-lg p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Memory Analytics</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-sm font-medium text-gray-500">Total Allocations</h3>
-              <p className="mt-1 text-2xl font-semibold text-indigo-600">
-                {analytics.totalAllocations}
-              </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Memory Utilization Over Time</h3>
+            <div className="h-64">
+              <Line
+                data={{
+                  labels: history.map((_, i) => `Step ${i + 1}`),
+                  datasets: [{
+                    label: 'Utilization (%)',
+                    data: history.map(h => h.utilization),
+                    borderColor: '#4F46E5',
+                    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                  }]
+                }}
+                options={chartOptions}
+              />
             </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-sm font-medium text-gray-500">Total Deallocations</h3>
-              <p className="mt-1 text-2xl font-semibold text-indigo-600">
-                {analytics.totalDeallocations}
-              </p>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-sm font-medium text-gray-500">Fragmentation</h3>
-              <p className="mt-1 text-2xl font-semibold text-indigo-600">
-                {analytics.fragmentation.toFixed(1)}%
-              </p>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-sm font-medium text-gray-500">Memory Utilization</h3>
-              <p className="mt-1 text-2xl font-semibold text-indigo-600">
-                {analytics.utilization.toFixed(1)}%
-              </p>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-sm font-medium text-gray-500">Free Blocks</h3>
-              <p className="mt-1 text-2xl font-semibold text-indigo-600">
-                {analytics.freeBlocks}
-              </p>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-sm font-medium text-gray-500">Allocated Blocks</h3>
-              <p className="mt-1 text-2xl font-semibold text-indigo-600">
-                {analytics.allocatedBlocks}
-              </p>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-sm font-medium text-gray-500">Total Free Space</h3>
-              <p className="mt-1 text-2xl font-semibold text-indigo-600">
-                {analytics.totalFreeSpace}
-              </p>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h3 className="text-sm font-medium text-gray-500">Largest Free Block</h3>
-              <p className="mt-1 text-2xl font-semibold text-indigo-600">
-                {analytics.largestFreeBlock}
-              </p>
+          </div>
+
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Fragmentation Over Time</h3>
+            <div className="h-64">
+              <Line
+                data={{
+                  labels: history.map((_, i) => `Step ${i + 1}`),
+                  datasets: [{
+                    label: 'Fragmentation (%)',
+                    data: history.map(h => h.fragmentation),
+                    borderColor: '#EF4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                  }]
+                }}
+                options={chartOptions}
+              />
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-white shadow rounded-lg p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Memory Utilization</h3>
-            <Line options={chartOptions} data={utilizationData} />
-          </div>
-          <div className="bg-white shadow rounded-lg p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Fragmentation</h3>
-            <Line options={chartOptions} data={fragmentationData} />
-          </div>
-          <div className="bg-white shadow rounded-lg p-6 md:col-span-2">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Block Distribution</h3>
-            <Line options={chartOptions} data={blocksData} />
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Current Memory Status</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="h-64">
+              <Pie
+                data={{
+                  labels: ['Allocated Blocks', 'Free Blocks'],
+                  datasets: [{
+                    data: [
+                      memory.filter(b => b.allocated).length,
+                      memory.filter(b => !b.allocated).length
+                    ],
+                    backgroundColor: ['#4F46E5', '#9CA3AF'],
+                    borderWidth: 1
+                  }]
+                }}
+                options={pieOptions}
+              />
+            </div>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Total Memory:</span>
+                <span className="font-medium">{totalMemory} units</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Allocated Memory:</span>
+                <span className="font-medium">
+                  {memory.filter(b => b.allocated).reduce((sum, b) => sum + b.size, 0)} units
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Free Memory:</span>
+                <span className="font-medium">
+                  {memory.filter(b => !b.allocated).reduce((sum, b) => sum + b.size, 0)} units
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Number of Blocks:</span>
+                <span className="font-medium">{memory.length}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Largest Free Block:</span>
+                <span className="font-medium">
+                  {Math.max(...memory.filter(b => !b.allocated).map(b => b.size))} units
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   const renderCppCode = () => (

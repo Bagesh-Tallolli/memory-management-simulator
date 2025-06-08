@@ -1,10 +1,10 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Navbar from './components/layout/Navbar'
-import Landing from './pages/Landing'
+import Home from './pages/Home'
 import Learn from './pages/Learn'
-import Code from './pages/Code'
 import Visualize from './pages/Visualize'
+import Code from './pages/Code'
 
 function App() {
   return (
@@ -12,10 +12,10 @@ function App() {
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <Routes>
-          <Route path="/" element={<Landing />} />
+          <Route path="/" element={<Home />} />
           <Route path="/learn" element={<Learn />} />
-          <Route path="/code" element={<Code />} />
           <Route path="/visualize" element={<Visualize />} />
+          <Route path="/code" element={<Code />} />
         </Routes>
       </div>
     </Router>
